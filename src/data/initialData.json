@@ -1,0 +1,47 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "email": "teacher@example.com",
+      "name": "Teacher",
+      "role": "teacher",
+      "password": "password"
+    },
+    {
+      "id": "2",
+      "email": "student@example.com",
+      "name": "Student",
+      "role": "student",
+      "password": "password",
+      "faceImage": null
+    }
+  ],
+  "sessions": [
+    {
+      "id": "session_1690000000000",
+      "code": "ABC123",
+      "teacherId": "1",
+      "className": "Math Class",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "date": "2023-08-01",
+      "allowedDistance": 50,
+      "latitude": 37.7749,
+      "longitude": -122.4194,
+      "active": true
+    }
+  ],
+  "attendanceRecords": [
+    {
+      "id": "attendance_1690000000001",
+      "studentId": "2",
+      "studentName": "Student",
+      "date": "2023-08-01",
+      "time": "09:15",
+      "status": "present",
+      "gpsDistance": 10,
+      "attemptedFromOutside": false,
+      "sessionCode": "ABC123"
+    }
+  ]
+}

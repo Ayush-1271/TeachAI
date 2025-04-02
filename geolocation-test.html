@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geolocation Test</title>
+</head>
+<body>
+  <h1>Geolocation Test</h1>
+  <button id="checkPermission">Check Permission</button>
+  <button id="getLocation">Get Location</button>
+  <p id="output"></p>
+
+  <script>
+    const output = document.getElementById("output");
+
+    document.getElementById("checkPermission").addEventListener("click", async () => {
+      if (!navigator.permissions || typeof navigator.permissions.query !== "function") {
+        output.textContent = "Permissions API is not supported by your browser.";
+        return;
+      }
+
+      try {
+        const status = await navigator.permissions.query({ name: "geolocation" });
+        output.textContent = `Geolocation permission state: ${status.state}`;
+        console.log(`Geolocation permission state: ${status.state}`);
+      } catch (error) {
+        output.textContent = "Failed to check geolocation permission state.";
+        console.error("Error checking geolocation permission state:", error);
+      }
+    });
+
+    document.getElementById("getLocation").addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        output.textContent = "Geolocation is not supported by your browser.";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          output.textContent = `Latitude: ${position.coords.latitude}, Longitude: ${position.coords.longitude}`;
+          console.log("Location retrieved successfully:", position);
+        },
+        (error) => {
+          output.textContent = `Error: ${error.message}`;
+          console.error("Geolocation error details:", error);
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 15000,
+          maximumAge: 0,
+        }
+      );
+    });
+  </script>
+</body>
+</html>
