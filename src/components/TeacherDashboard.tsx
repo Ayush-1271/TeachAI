@@ -20,19 +20,84 @@ const POLLING_INTERVAL = 5000; // Poll every 5 seconds
 
 const TeacherDashboard = () => {
   const { user, logout } = useAuth();
-  const { 
-    createSession, 
-    getSessionAttendance, 
+  const { toast } = useToast();
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [previousSessions, setPreviousSessions] = useState<Session[]>([]);
+
+  // Filter and update session statuses
+  const filterActiveSessions = (allSessions: Session[]) => {
+    const now = new Date();
+    const currentDate = now.toISOString().split("T")[0];
+    const currentTime = now.toTimeString().slice(0, 5);
+
+    return allSessions.filter(
+      (session) =>
+        session.date === currentDate &&
+        currentTime >= session.startTime &&
+        currentTime <= session.endTime
+    );
+  };
+
+  // Fetch sessions and filter active ones
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const data = await getBlob(SESSION_BLOB_ID);
+        const allSessions = data.sessions || [];
+        const activeSessions = filterActiveSessions(allSessions);
+        setSessions(activeSessions);
+      } catch (error) {
+        console.error("Failed to fetch sessions:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load sessions.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchSessions();
+  }, [toast]);
+
+  // Periodically update session statuses
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const data = await getBlob(SESSION_BLOB_ID);
+        const allSessions = data.sessions || [];
+        const activeSessions = filterActiveSessions(allSessions);
+        setSessions(activeSessions);
+      } catch (error) {
+        console.error("Failed to update sessions:", error);
+      }
+    }, 1000); // Update every 1 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const {
+    createSession,
+    getSessionAttendance,
     exportAttendance,
     manuallyUpdateAttendance,
-    getPreviousSessions
+    getPreviousSessions,
   } = useAttendance();
-  const { toast } = useToast();
 
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [previousSessions, setPreviousSessions] = useState<Session[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<
+    {
+      id: string;
+      studentId: string;
+      studentName: string;
+      date: string;
+      time: string;
+      status: "present" | "absent";
+      gpsDistance?: number;
+      attemptedFromOutside?: boolean;
+    }[]
+  >([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    null
+  );
 
   // Form states for creating a session
   const [sessionName, setSessionName] = useState("");
@@ -47,9 +112,9 @@ const TeacherDashboard = () => {
 
   // Set default date to today
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     setSessionDate(today);
-    
+
     // Load previous sessions
     const prevSessions = getPreviousSessions();
     setPreviousSessions(prevSessions);
@@ -96,7 +161,8 @@ const TeacherDashboard = () => {
           const session = sessions.find((s) => s.id === selectedSessionId);
           if (session) {
             const sessionRecords = updatedRecords.filter(
-              (record: any) => record.sessionCode === session.code
+              (record: { sessionCode: string }) =>
+                record.sessionCode === session.code
             );
             setAttendanceRecords(sessionRecords);
           }
@@ -117,7 +183,9 @@ const TeacherDashboard = () => {
           setLongitude(position.coords.longitude);
           toast({
             title: "Location Set",
-            description: `Latitude: ${position.coords.latitude.toFixed(6)}, Longitude: ${position.coords.longitude.toFixed(6)}`,
+            description: `Latitude: ${position.coords.latitude.toFixed(
+              6
+            )}, Longitude: ${position.coords.longitude.toFixed(6)}`,
           });
         },
         (error) => {
@@ -143,7 +211,10 @@ const TeacherDashboard = () => {
 
     try {
       // Generate a random 6-character session code
-      const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const sessionCode = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .toUpperCase();
 
       const newSession = await createSession({
         code: sessionCode,
@@ -173,7 +244,8 @@ const TeacherDashboard = () => {
     } catch (error) {
       toast({
         title: "Error Creating Session",
-        description: error instanceof Error ? error.message : "An error occurred",
+        description:
+          error instanceof Error ? error.message : "An error occurred",
         variant: "destructive",
       });
     }
@@ -187,16 +259,19 @@ const TeacherDashboard = () => {
   };
 
   // Update student attendance status
-  const handleUpdateAttendanceStatus = (recordId: string, newStatus: "present" | "absent") => {
+  const handleUpdateAttendanceStatus = (
+    recordId: string,
+    newStatus: "present" | "absent"
+  ) => {
     try {
       manuallyUpdateAttendance(recordId, newStatus);
-      
+
       // Refresh the attendance records
       if (selectedSessionId) {
         const records = getSessionAttendance(selectedSessionId);
         setAttendanceRecords(records);
       }
-      
+
       toast({
         title: "Attendance Updated",
         description: `Attendance status changed to ${newStatus}`,
@@ -204,7 +279,8 @@ const TeacherDashboard = () => {
     } catch (error) {
       toast({
         title: "Error Updating Attendance",
-        description: error instanceof Error ? error.message : "An error occurred",
+        description:
+          error instanceof Error ? error.message : "An error occurred",
         variant: "destructive",
       });
     }
@@ -216,12 +292,14 @@ const TeacherDashboard = () => {
     if (!isCreatingSession) {
       // Set default date and times if starting form
       const now = new Date();
-      const today = now.toISOString().split('T')[0];
+      const today = now.toISOString().split("T")[0];
       setSessionDate(today);
-      
+
       const currentTime = now.toTimeString().slice(0, 5);
-      const thirtyMinutesLater = new Date(now.getTime() + 30 * 60000).toTimeString().slice(0, 5);
-      
+      const thirtyMinutesLater = new Date(now.getTime() + 30 * 60000)
+        .toTimeString()
+        .slice(0, 5);
+
       setStartTime(currentTime);
       setEndTime(thirtyMinutesLater);
     }
@@ -229,7 +307,9 @@ const TeacherDashboard = () => {
 
   // Toggle between current and previous sessions
   const toggleViewMode = () => {
-    setViewMode(prevMode => prevMode === "current" ? "previous" : "current");
+    setViewMode((prevMode) =>
+      prevMode === "current" ? "previous" : "current"
+    );
     setSelectedSessionId(null); // Reset selected session when switching views
   };
 
@@ -247,31 +327,37 @@ const TeacherDashboard = () => {
           </button>
         </div>
       </div>
-      
+
       {/* View Toggle */}
       <div className="flex justify-center mb-4">
         <div className="border border-black inline-flex">
-          <button 
+          <button
             onClick={() => setViewMode("current")}
-            className={`px-4 py-2 ${viewMode === "current" ? "bg-gray-200" : ""}`}
+            className={`px-4 py-2 ${
+              viewMode === "current" ? "bg-gray-200" : ""
+            }`}
           >
             Current Sessions
           </button>
-          <button 
+          <button
             onClick={() => setViewMode("previous")}
-            className={`px-4 py-2 ${viewMode === "previous" ? "bg-gray-200" : ""}`}
+            className={`px-4 py-2 ${
+              viewMode === "previous" ? "bg-gray-200" : ""
+            }`}
           >
             Previous Sessions
           </button>
         </div>
       </div>
-      
+
       {/* Session Management */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
-          <h2 className="text-lg">{viewMode === "current" ? "Current Sessions" : "Previous Sessions"}</h2>
+          <h2 className="text-lg">
+            {viewMode === "current" ? "Current Sessions" : "Previous Sessions"}
+          </h2>
           {viewMode === "current" && (
-            <button 
+            <button
               onClick={toggleSessionForm}
               className="px-2 py-1 border border-black"
             >
@@ -279,11 +365,14 @@ const TeacherDashboard = () => {
             </button>
           )}
         </div>
-        
+
         {isCreatingSession && viewMode === "current" && (
-          <form onSubmit={handleCreateSession} className="border border-black p-4 mb-4">
+          <form
+            onSubmit={handleCreateSession}
+            className="border border-black p-4 mb-4"
+          >
             <h3 className="mb-2">Create New Session</h3>
-            
+
             <div className="mb-2">
               <label htmlFor="sessionName" className="block mb-1">
                 Class/Session Name:
@@ -297,7 +386,7 @@ const TeacherDashboard = () => {
                 className="w-full px-2 py-1 border border-black"
               />
             </div>
-            
+
             <div className="mb-2">
               <label htmlFor="sessionDate" className="block mb-1">
                 Date:
@@ -311,7 +400,7 @@ const TeacherDashboard = () => {
                 className="w-full px-2 py-1 border border-black"
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4 mb-2">
               <div>
                 <label htmlFor="startTime" className="block mb-1">
@@ -322,11 +411,11 @@ const TeacherDashboard = () => {
                   id="startTime"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                required
-                className="w-full px-2 py-1 border border-black"
+                  required
+                  className="w-full px-2 py-1 border border-black"
                 />
               </div>
-              
+
               <div>
                 <label htmlFor="endTime" className="block mb-1">
                   End Time:
@@ -341,7 +430,7 @@ const TeacherDashboard = () => {
                 />
               </div>
             </div>
-            
+
             <div className="mb-2">
               <label htmlFor="allowedDistance" className="block mb-1">
                 Allowed Distance (meters):
@@ -356,15 +445,19 @@ const TeacherDashboard = () => {
                 className="w-full px-2 py-1 border border-black"
               />
             </div>
-            
+
             <div className="mb-4">
               <label className="block mb-1">Classroom Location:</label>
               <div className="flex items-center">
                 <div className="flex-1 mr-2">
-                  <label className="text-sm">Latitude: {latitude.toFixed(6)}</label>
+                  <label className="text-sm">
+                    Latitude: {latitude.toFixed(6)}
+                  </label>
                 </div>
                 <div className="flex-1 mr-2">
-                  <label className="text-sm">Longitude: {longitude.toFixed(6)}</label>
+                  <label className="text-sm">
+                    Longitude: {longitude.toFixed(6)}
+                  </label>
                 </div>
                 <button
                   type="button"
@@ -375,37 +468,54 @@ const TeacherDashboard = () => {
                 </button>
               </div>
             </div>
-            
-            <button
-              type="submit"
-              className="px-4 py-1 border border-black"
-            >
+
+            <button type="submit" className="px-4 py-1 border border-black">
               Create Session
             </button>
           </form>
         )}
-        
+
         {displaySessions.length > 0 ? (
           <div className="border border-black">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">Name</TableHead>
-                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">Date</TableHead>
-                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">Time</TableHead>
-                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">Code</TableHead>
-                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">Status</TableHead>
-                  <TableHead className="border-b border-black px-2 py-1 text-left">Actions</TableHead>
+                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                    Name
+                  </TableHead>
+                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                    Date
+                  </TableHead>
+                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                    Time
+                  </TableHead>
+                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                    Code
+                  </TableHead>
+                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                    Status
+                  </TableHead>
+                  <TableHead className="border-b border-black px-2 py-1 text-left">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {displaySessions.map((session: Session) => (
                   <TableRow key={session.id} className="hover:bg-gray-50">
-                    <TableCell className="border-r border-black px-2 py-1">{session.className}</TableCell>
-                    <TableCell className="border-r border-black px-2 py-1">{session.date}</TableCell>
+                    <TableCell className="border-r border-black px-2 py-1">
+                      {session.className}
+                    </TableCell>
+                    <TableCell className="border-r border-black px-2 py-1">
+                      {session.date}
+                    </TableCell>
                     <TableCell className="border-r border-black px-2 py-1">{`${session.startTime} - ${session.endTime}`}</TableCell>
-                    <TableCell className="border-r border-black px-2 py-1">{session.code}</TableCell>
-                    <TableCell className="border-r border-black px-2 py-1">{session.active ? "Active" : "Inactive"}</TableCell>
+                    <TableCell className="border-r border-black px-2 py-1">
+                      {session.code}
+                    </TableCell>
+                    <TableCell className="border-r border-black px-2 py-1">
+                      {session.active ? "Active" : "Inactive"}
+                    </TableCell>
                     <TableCell className="px-2 py-1">
                       <button
                         onClick={() => setSelectedSessionId(session.id)}
@@ -425,7 +535,7 @@ const TeacherDashboard = () => {
           </div>
         )}
       </div>
-      
+
       {/* Attendance Records */}
       {selectedSessionId && (
         <div className="mb-6">
@@ -439,49 +549,87 @@ const TeacherDashboard = () => {
               Export to CSV
             </button>
           </div>
-          
+
           {attendanceRecords.length > 0 ? (
             <div className="border border-black">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">Student ID</TableHead>
-                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">Name</TableHead>
-                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">Date</TableHead>
-                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">Time</TableHead>
-                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">Status</TableHead>
-                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">GPS Distance</TableHead>
-                    <TableHead className="border-b border-black px-2 py-1 text-left">Actions</TableHead>
+                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                      Student ID
+                    </TableHead>
+                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                      Name
+                    </TableHead>
+                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                      Date
+                    </TableHead>
+                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                      Time
+                    </TableHead>
+                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                      Status
+                    </TableHead>
+                    <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                      GPS Distance
+                    </TableHead>
+                    <TableHead className="border-b border-black px-2 py-1 text-left">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {attendanceRecords.map((record) => {
                     // Validate record properties
-                    if (!record || !record.studentId || !record.studentName || !record.date || !record.time || !record.status) {
+                    if (
+                      !record ||
+                      !record.studentId ||
+                      !record.studentName ||
+                      !record.date ||
+                      !record.time ||
+                      !record.status
+                    ) {
                       console.warn("Skipping invalid record:", record);
                       return null; // Skip invalid records
                     }
 
                     return (
                       <TableRow key={record.id} className="hover:bg-gray-50">
-                        <TableCell className="border-r border-black px-2 py-1">{record.studentId}</TableCell>
-                        <TableCell className="border-r border-black px-2 py-1">{record.studentName}</TableCell>
-                        <TableCell className="border-r border-black px-2 py-1">{record.date}</TableCell>
-                        <TableCell className="border-r border-black px-2 py-1">{record.time}</TableCell>
-                        <TableCell className="border-r border-black px-2 py-1">{record.status}</TableCell>
                         <TableCell className="border-r border-black px-2 py-1">
-                          {record.gpsDistance !== undefined ? `${Math.round(record.gpsDistance)}m` : "N/A"}
+                          {record.studentId}
+                        </TableCell>
+                        <TableCell className="border-r border-black px-2 py-1">
+                          {record.studentName}
+                        </TableCell>
+                        <TableCell className="border-r border-black px-2 py-1">
+                          {record.date}
+                        </TableCell>
+                        <TableCell className="border-r border-black px-2 py-1">
+                          {record.time}
+                        </TableCell>
+                        <TableCell className="border-r border-black px-2 py-1">
+                          {record.status}
+                        </TableCell>
+                        <TableCell className="border-r border-black px-2 py-1">
+                          {record.gpsDistance !== undefined
+                            ? `${Math.round(record.gpsDistance)}m`
+                            : "N/A"}
                           {record.attemptedFromOutside && " (Outside)"}
                         </TableCell>
                         <TableCell className="px-2 py-1">
                           <button
-                            onClick={() => handleUpdateAttendanceStatus(
-                              record.id, 
-                              record.status === 'present' ? 'absent' : 'present'
-                            )}
+                            onClick={() =>
+                              handleUpdateAttendanceStatus(
+                                record.id,
+                                record.status === "present"
+                                  ? "absent"
+                                  : "present"
+                              )
+                            }
                             className="px-2 py-0.5 border border-black"
                           >
-                            Mark {record.status === 'present' ? 'Absent' : 'Present'}
+                            Mark{" "}
+                            {record.status === "present" ? "Absent" : "Present"}
                           </button>
                         </TableCell>
                       </TableRow>
