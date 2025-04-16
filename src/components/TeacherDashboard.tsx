@@ -81,6 +81,7 @@ const TeacherDashboard = () => {
     exportAttendance,
     manuallyUpdateAttendance,
     getPreviousSessions,
+    getAttendanceCountForSession,
   } = useAttendance();
 
   const [attendanceRecords, setAttendanceRecords] = useState<
@@ -495,6 +496,9 @@ const TeacherDashboard = () => {
                   <TableHead className="border-b border-r border-black px-2 py-1 text-left">
                     Status
                   </TableHead>
+                  <TableHead className="border-b border-r border-black px-2 py-1 text-left">
+                    Check-ins
+                  </TableHead>
                   <TableHead className="border-b border-black px-2 py-1 text-left">
                     Actions
                   </TableHead>
@@ -514,7 +518,10 @@ const TeacherDashboard = () => {
                       {session.code}
                     </TableCell>
                     <TableCell className="border-r border-black px-2 py-1">
-                      {session.active ? "Active" : "Inactive"}
+                      {viewMode === "current" ? "Active" : "Inactive"}
+                    </TableCell>
+                    <TableCell className="border-r border-black px-2 py-1">
+                      {getAttendanceCountForSession(session.id)}
                     </TableCell>
                     <TableCell className="px-2 py-1">
                       <button
