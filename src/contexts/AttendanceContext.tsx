@@ -32,6 +32,7 @@ interface AttendanceContextType {
   ) => void;
   getActiveSession: () => Session | undefined;
   getPreviousSessions: () => Session[];
+  getAttendanceCountForSession: (sessionId: string) => number;
 }
 
 const AttendanceContext = createContext<AttendanceContextType | undefined>(
@@ -227,6 +228,16 @@ export const AttendanceProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   };
 
+  // Get the number of attendance records for a specific session
+  const getAttendanceCountForSession = (sessionId: string): number => {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (!session) return 0;
+
+    return attendanceRecords.filter(
+      (record) => record.sessionCode === session.code
+    ).length;
+  };
+
   // Export attendance to CSV (simulated)
   const exportAttendance = (sessionId: string) => {
     const session = sessions.find((s) => s.id === sessionId);
@@ -307,6 +318,7 @@ export const AttendanceProvider: React.FC<{ children: React.ReactNode }> = ({
         manuallyUpdateAttendance,
         getActiveSession,
         getPreviousSessions,
+        getAttendanceCountForSession, // Add this to the context
       }}
     >
       {children}
